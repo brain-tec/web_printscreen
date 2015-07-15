@@ -4,6 +4,7 @@
 #    Copyright (c) 2013 ZestyBeanz Technologies Pvt. Ltd.
 #    (http://wwww.zbeanztech.com)
 #    contact@zbeanztech.com
+#    Copyright (c) 2015 Savoir-faire Linux
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -29,15 +30,17 @@ from web.controllers.main import ExcelExport
 from web.controllers.main import Export
 import re
 from cStringIO import StringIO
-from lxml  import etree
+from lxml import etree
 import trml2pdf
-import time, os
+import time
+import os
 import locale
 import openerp.tools as tools
 try:
     import xlwt
 except ImportError:
     xlwt = None
+
 
 class ZbExcelExport(ExcelExport):
     _cp_path = '/web/export/zb_excel_export'
@@ -54,7 +57,7 @@ class ZbExcelExport(ExcelExport):
         for i, fieldname in enumerate(fields):
             if fieldname.get('header_data_id', False):
                 field_name = fieldname.get('header_name', '')
-                worksheet.write(0, i-count, field_name, style)
+                worksheet.write(0, i - count, field_name, style)
                 worksheet.col(i).width = 8000
             else:
                 count += 1
@@ -76,8 +79,11 @@ class ZbExcelExport(ExcelExport):
                         cellvalue = re.sub("\r", " ", cellvalue)
                     if cell_value.get('number', False) and cellvalue:
                         cellvalue = float(cellvalue)
-                    if cellvalue is False: cellvalue = None
-                    worksheet.write(row_index + 1, cell_index - count, cellvalue, cell_style)
+                    if cellvalue is False:
+                        cellvalue = None
+                    worksheet.write(
+                        row_index + 1, cell_index - count, cellvalue,
+                        cell_style)
                 else:
                     count += 1
         fp = StringIO()
@@ -86,19 +92,22 @@ class ZbExcelExport(ExcelExport):
         data = fp.read()
         fp.close()
         return data
-    
+
     @openerpweb.httprequest
     def index(self, req, data, token):
         data = json.loads(data)
         return req.make_response(
-            self.from_data(data.get('headers', []), data.get('rows', [])),
-                           headers=[
-                                    ('Content-Disposition', 'attachment; filename="%s"'
-                                        % data.get('model', 'Export.xls')),
-                                    ('Content-Type', self.content_type)
-                                    ],
-                                 cookies={'fileToken': token}
-                                 )
+            self.from_data(
+                data.get('headers', []), data.get('rows', [])
+            ),
+            headers=[
+                ('Content-Disposition', 'attachment; filename="%s"'
+                    % data.get('model', 'Export.xls')),
+                ('Content-Type', self.content_type)
+            ],
+            cookies={'fileToken': token}
+        )
+
 
 class ExportPdf(Export):
     _cp_path = '/web/export/zb_pdf'
@@ -107,32 +116,37 @@ class ExportPdf(Export):
         'label': 'PDF',
         'error': None
     }
-    
+
     @property
     def content_type(self):
         return 'application/pdf'
-    
+
     def filename(self, base):
         return base + '.pdf'
-    
-    def from_data(self, uid, fields, rows, company_name):
-        pageSize=[210.0,297.0]
+
+    def from_data(self, uid, fields, rows, company_name, company_logo):
+        """
+        :param company_name: string
+        :param company_logo: binary file
+        """
+        page_size = [210.0, 297.0]
         new_doc = etree.Element("report")
         config = etree.SubElement(new_doc, 'config')
+
         def _append_node(name, text):
             n = etree.SubElement(config, name)
             n.text = text
-        _append_node('date', time.strftime(str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
-        _append_node('PageSize', '%.2fmm,%.2fmm' % tuple(pageSize))
-        _append_node('PageWidth', '%.2f' % (pageSize[0] * 2.8346,))
-        _append_node('PageHeight', '%.2f' %(pageSize[1] * 2.8346,))
+        _append_node('date', time.strftime(
+            str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
+        _append_node('PageSize', '%.2fmm,%.2fmm' % tuple(page_size))
+        _append_node('PageWidth', '%.2f' % (page_size[0] * 2.8346,))
+        _append_node('PageHeight', '%.2f' % (page_size[1] * 2.8346,))
         _append_node('PageFormat', 'a4')
-        _append_node('header-date', time.strftime(str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
+        _append_node('header-date', time.strftime(
+            str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
         _append_node('company', company_name)
-        l = []
-        t = 0
-        temp = []
-        tsum = []
+        _append_node('company_logo', company_logo)
+
         skip_index = []
         header = etree.SubElement(new_doc, 'header')
         i = 0
@@ -149,7 +163,7 @@ class ExportPdf(Export):
             node_line = etree.SubElement(lines, 'row')
             j = 0
             for row in row_lines:
-                if not j in skip_index:
+                if j not in skip_index:
                     para = "yes"
                     tree = "no"
                     value = row.get('data', '')
@@ -157,28 +171,47 @@ class ExportPdf(Export):
                         para = "group"
                     if row.get('number', False):
                         tree = "float"
-                    col = etree.SubElement(node_line, 'col', para=para, tree=tree)
+                    col = etree.SubElement(
+                        node_line, 'col', para=para, tree=tree)
                     col.text = tools.ustr(value)
                 j += 1
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         transform = etree.XSLT(
-            etree.parse(os.path.join(tools.config['root_path'],
-                                     'addons/base/report/custom_new.xsl')))
+            etree.parse(os.path.join(
+                current_dir,
+                'report/main_rml_layout.xsl'
+            )))
+
         rml = etree.tostring(transform(new_doc))
-        self.obj = trml2pdf.parseNode(rml, title='Printscreen')
+
+        localcontext = {
+            'company_logo': company_logo,
+            'internal_header': False,
+        }
+
+        self.obj = trml2pdf.parseNode(
+            rml, localcontext, title='Printscreen')
         return self.obj
+
 
 class ZbPdfExport(ExportPdf):
     _cp_path = '/web/export/zb_pdf_export'
-    
+
     @openerpweb.httprequest
     def index(self, req, data, token):
         data = json.loads(data)
         uid = data.get('uid', False)
-        return req.make_response(self.from_data(uid, data.get('headers', []), data.get('rows', []),
-                                                data.get('company_name','')),
-                                 headers=[('Content-Disposition',
-                                           'attachment; filename=PDF Export'),
-                                          ('Content-Type', self.content_type)],
-                                 cookies={'fileToken': int(token)})
 
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
+        return req.make_response(
+            self.from_data(
+                uid, data.get('headers', []),
+                data.get('rows', []),
+                data.get('company_name', ''),
+                data.get('company_logo', ''),
+            ),
+            headers=[
+                ('Content-Disposition', 'attachment; filename=PDF Export'),
+                ('Content-Type', self.content_type)],
+            cookies={'fileToken': token}
+        )

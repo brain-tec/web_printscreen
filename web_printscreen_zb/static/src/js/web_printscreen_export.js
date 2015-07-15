@@ -117,7 +117,7 @@ openerp.web_printscreen_zb = function(instance, m) {
              else{
                 console.log(view)
                 new instance.web.Model("res.users").get_func("read")(this.session.uid, ["company_id"]).then(function(res) {
-                    new instance.web.Model("res.company").get_func("read")(res['company_id'][0], ["name"]).then(function(result) {
+                    new instance.web.Model("res.company").get_func("read")(res['company_id'][0], ["name", "logo"]).then(function(result) {
                         view.session.get_file({
                              url: '/web/export/zb_pdf_export',
                              data: {data: JSON.stringify({
@@ -125,7 +125,8 @@ openerp.web_printscreen_zb = function(instance, m) {
                                     model : view.model,
                                     headers : header_name_list,
                                     rows : export_data,
-                                    company_name: result['name']
+                                    company_name: result['name'],
+                                    company_logo: result['logo'],
                              })},
                              complete: $.unblockUI
                          });

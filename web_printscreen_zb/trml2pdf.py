@@ -36,8 +36,10 @@ from lxml import etree
 import base64
 from reportlab.platypus.doctemplate import ActionFlowable
 from openerp.tools.safe_eval import safe_eval as eval
+from reportlab.lib.units import cm
 from openerp.tools.misc import file_open
 from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.utils import ImageReader
 
 try:
     from cStringIO import StringIO
@@ -89,7 +91,7 @@ class NumberedCanvas(canvas.Canvas):
         else:
             self.pages.update({self._currentPage: self._pageCount})
         self._codes.append({'code': self._code, 'stack': self._codeStack})
-
+        self._startPage()
         self._flag = False
 
     def pageCount(self):
@@ -111,6 +113,27 @@ class NumberedCanvas(canvas.Canvas):
                 'number_of_pages': self.pages.get(key, False),
             })
 
+    def print_logo(self):
+        """
+        Print the company logo on the current page
+
+        The logo can not be added through the xsl template
+        because we use a NumberedCanvas. When using this type
+        of canevas, the images on the template are ignored.
+        """
+        logo_data = base64.decodestring(
+            self.localcontext['company_logo'] or '')
+        s = StringIO(logo_data)
+        img = ImageReader(s)
+        args = {
+            'x': 1.3 * cm,
+            'y': 18.8 * cm,
+            'mask': 'auto',
+            'height': 40.0,
+        }
+        self.drawImage(img, **args)
+        s.close()
+
     def save(self):
         """add page info to each page (page x of y)"""
         # reset page counter
@@ -119,6 +142,7 @@ class NumberedCanvas(canvas.Canvas):
             self._code = code['code']
             self._codeStack = code['stack']
             self.pageCount()
+            self.print_logo()
             canvas.Canvas.showPage(self)
         self._doc.SaveToFile(self._filename, self)
 
@@ -1060,11 +1084,16 @@ class EndFrameFlowable(ActionFlowable):
 
 class TinyDocTemplate(platypus.BaseDocTemplate):
 
+    def __init__(self, filename, localcontext, **kw):
+        self.localcontext = localcontext
+        platypus.BaseDocTemplate.__init__(self, filename, **kw)
+
     def beforeDocument(self):
         # Store some useful value directly inside canvas, so it's available
         # on flowable drawing (needed for proper PageCount handling)
         self.canv._doPageReset = False
         self.canv._storyCount = 0
+        self.canv.localcontext = self.localcontext
 
     def ___handle_pageBegin(self):
         self.page += 1
@@ -1130,6 +1159,7 @@ class _rml_template(object):
         self.doc_tmpl = TinyDocTemplate(
             out,
             pagesize=page_size,
+            localcontext=self.localcontext,
             **utils.attr_get(
                 node, [
                     'leftMargin',

@@ -6,13 +6,11 @@
         <fill color="black"/>
         <stroke color="black"/>
         <setFont name="DejaVu Sans Bold" size="10"/>
-        <!--logo-->
-        <image x="1.3cm" y="19.5cm" height="40.0" >[[ company_logo or removeParentNode('image') ]]</image>
 
-        <drawString x="13.8cm" y="19.5cm"><xsl:value-of select="//company"/></drawString>
+        <drawString x="13.8cm" y="18.8cm"><xsl:value-of select="//company"/></drawString>
 
         <stroke color="#000000"/>
-        <lines size="8">1.3cm 19.3cm 28.5cm 19.3cm</lines>
+        <lines size="8">1.3cm 18.6cm 28.5cm 18.6cm</lines>
         <lines size="8">1.3cm 2cm 28.5cm 2cm</lines>
 
         <stroke color="black"/>

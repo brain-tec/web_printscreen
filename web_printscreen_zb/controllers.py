@@ -32,9 +32,7 @@ import re
 from cStringIO import StringIO
 from lxml import etree
 import trml2pdf
-import time
 import os
-import locale
 import openerp.tools as tools
 try:
     import xlwt
@@ -124,7 +122,9 @@ class ExportPdf(Export):
     def filename(self, base):
         return base + '.pdf'
 
-    def from_data(self, uid, fields, rows, company_name, company_logo):
+    def from_data(
+        self, uid, fields, rows, company_name, company_logo, current_date
+    ):
         """
         :param company_name: string
         :param company_logo: binary file
@@ -136,14 +136,12 @@ class ExportPdf(Export):
         def _append_node(name, text):
             n = etree.SubElement(config, name)
             n.text = text
-        _append_node('date', time.strftime(
-            str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
+        _append_node('date', current_date)
         _append_node('PageSize', '%.2fmm,%.2fmm' % tuple(page_size))
         _append_node('PageWidth', '%.2f' % (page_size[0] * 2.8346,))
         _append_node('PageHeight', '%.2f' % (page_size[1] * 2.8346,))
         _append_node('PageFormat', 'a4')
-        _append_node('header-date', time.strftime(
-            str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
+        _append_node('header-date', current_date)
         _append_node('company', company_name)
         _append_node('company_logo', company_logo)
 
@@ -203,12 +201,16 @@ class ZbPdfExport(ExportPdf):
         data = json.loads(data)
         uid = data.get('uid', False)
 
+        # import ipdb
+        # ipdb.set_trace()
+
         return req.make_response(
             self.from_data(
                 uid, data.get('headers', []),
                 data.get('rows', []),
                 data.get('company_name', ''),
                 data.get('company_logo', ''),
+                data.get('current_date', ''),
             ),
             headers=[
                 ('Content-Disposition', 'attachment; filename=PDF Export'),

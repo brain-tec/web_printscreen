@@ -125,11 +125,13 @@ class NumberedCanvas(canvas.Canvas):
             self.localcontext['company_logo'] or '')
         s = StringIO(logo_data)
         img = ImageReader(s)
+        (sx, sy) = img.getSize()
         args = {
             'x': 1.3 * cm,
             'y': 18.8 * cm,
             'mask': 'auto',
             'height': 40.0,
+            'width': 40.0 * sx / sy,
         }
         self.drawImage(img, **args)
         s.close()

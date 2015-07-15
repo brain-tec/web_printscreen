@@ -1,9 +1,6 @@
 # -*- encoding: utf-8 -*-
 ##############################################################################
 #
-#    Copyright (c) 2013 ZestyBeanz Technologies Pvt. Ltd.
-#    (http://wwww.zbeanztech.com)
-#    contact@zbeanztech.com
 #    Copyright (c) 2015 Savoir-faire Linux
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -21,6 +18,4 @@
 #
 ##############################################################################
 
-from . import trml2pdf
-from . import controllers
-from . import models
+from . import res_users

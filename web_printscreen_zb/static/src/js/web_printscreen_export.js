@@ -116,20 +116,19 @@ openerp.web_printscreen_zb = function(instance, m) {
              }
              else{
                 console.log(view)
-                new instance.web.Model("res.users").get_func("read")(this.session.uid, ["company_id"]).then(function(res) {
-                    new instance.web.Model("res.company").get_func("read")(res['company_id'][0], ["name", "logo"]).then(function(result) {
-                        view.session.get_file({
-                             url: '/web/export/zb_pdf_export',
-                             data: {data: JSON.stringify({
-                                    uid: view.session.uid,
-                                    model : view.model,
-                                    headers : header_name_list,
-                                    rows : export_data,
-                                    company_name: result['name'],
-                                    company_logo: result['logo'],
-                             })},
-                             complete: $.unblockUI
-                         });
+                new instance.web.Model("res.users").get_func("get_printscreen_report_context")(this.session.uid).then(function(res) {
+                    view.session.get_file({
+                         url: '/web/export/zb_pdf_export',
+                         data: {data: JSON.stringify({
+                                uid: view.session.uid,
+                                model : view.model,
+                                headers : header_name_list,
+                                rows : export_data,
+                                company_name: res['company_name'],
+                                company_logo: res['company_logo'],
+                                current_date: res['current_date'],
+                         })},
+                         complete: $.unblockUI
                     });
                 });
              }

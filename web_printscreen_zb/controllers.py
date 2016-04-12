@@ -32,6 +32,7 @@ import re
 from cStringIO import StringIO
 from lxml import etree
 import trml2pdf
+import operator
 import os
 import openerp.tools as tools
 try:
@@ -40,7 +41,28 @@ except ImportError:
     xlwt = None
 
 
+@openerpweb.jsonrequest
+def formats(self, req):
+    """
+    Override the original method of class Export to prevent
+    unwanted classes to appear in the types of exports in the
+    exporting wizard.
+    """
+    return sorted([
+        controller.fmt
+        for path, controller in openerpweb.controllers_path.iteritems()
+        if path.startswith(self._cp_path) and
+        hasattr(controller, 'fmt') and
+        controller.fmt is not None
+    ], key=operator.itemgetter("label"))
+
+
+Export.formats = formats
+
+
 class ZbExcelExport(ExcelExport):
+    fmt = None
+
     _cp_path = '/web/export/zb_excel_export'
 
     def from_data(self, fields, rows):
@@ -108,12 +130,8 @@ class ZbExcelExport(ExcelExport):
 
 
 class ExportPdf(Export):
+    fmt = None
     _cp_path = '/web/export/zb_pdf'
-    fmt = {
-        'tag': 'pdf',
-        'label': 'PDF',
-        'error': None
-    }
 
     @property
     def content_type(self):
@@ -194,15 +212,13 @@ class ExportPdf(Export):
 
 
 class ZbPdfExport(ExportPdf):
+    fmt = None
     _cp_path = '/web/export/zb_pdf_export'
 
     @openerpweb.httprequest
     def index(self, req, data, token):
         data = json.loads(data)
         uid = data.get('uid', False)
-
-        # import ipdb
-        # ipdb.set_trace()
 
         return req.make_response(
             self.from_data(

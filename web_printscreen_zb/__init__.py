@@ -21,7 +21,6 @@
 #
 ##############################################################################
 
-import trml2pdf
-import controllers
-
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
+from . import trml2pdf
+from . import controllers
+from . import models

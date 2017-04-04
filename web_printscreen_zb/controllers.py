@@ -30,17 +30,35 @@ from openerp.addons.web.controllers.main import ExcelExport
 from openerp.addons.web.controllers.main import Export
 import re
 from cStringIO import StringIO
-from lxml  import etree
+from lxml import etree
 import trml2pdf
-import time, os
-import locale
+import operator
+import os
 import openerp.tools as tools
 try:
     import xlwt
 except ImportError:
     xlwt = None
 
+@openerpweb.jsonrequest
+def formats(self, req):
+    """
+    Override the original method of class Export to prevent
+    unwanted classes to appear in the types of exports in the
+    exporting wizard.
+   """
+    return sorted([
+        controller.fmt
+        for path, controller in openerpweb.controllers_path.iteritems()
+        if path.startswith(self._cp_path) and
+        hasattr(controller, 'fmt') and
+        controller.fmt is not None
+    ], key=operator.itemgetter("label"))
+
+Export.formats = formats
+
 class ZbExcelExport(ExcelExport):
+    fmt = None
     _cp_path = '/web/export/zb_excel_export'
 
     def from_data(self, fields, rows):
@@ -55,7 +73,7 @@ class ZbExcelExport(ExcelExport):
         for i, fieldname in enumerate(fields):
             if fieldname.get('header_data_id', False):
                 field_name = fieldname.get('header_name', '')
-                worksheet.write(0, i-count, field_name, style)
+                worksheet.write(0, i - count, field_name, style)
                 worksheet.col(i).width = 8000
             else:
                 count += 1
@@ -77,7 +95,8 @@ class ZbExcelExport(ExcelExport):
                         cellvalue = re.sub("\r", " ", cellvalue)
                     if cell_value.get('number', False) and cellvalue:
                         cellvalue = float(cellvalue)
-                    if cellvalue is False: cellvalue = None
+                    if cellvalue is False:
+                        cellvalue = None
                     worksheet.write(row_index + 1, cell_index - count, cellvalue, cell_style)
                 else:
                     count += 1
@@ -87,7 +106,7 @@ class ZbExcelExport(ExcelExport):
         data = fp.read()
         fp.close()
         return data
-    
+
     @openerpweb.httprequest
     def index(self, req, data, token):
         data = json.loads(data)
@@ -102,13 +121,9 @@ class ZbExcelExport(ExcelExport):
                                  )
 
 class ExportPdf(Export):
+    fmt = None
     _cp_path = '/web/export/zb_pdf'
-    fmt = {
-        'tag': 'pdf',
-        'label': 'PDF',
-        'error': None
-    }
-    
+
     @property
     def content_type(self):
         return 'application/pdf'
@@ -116,20 +131,27 @@ class ExportPdf(Export):
     def filename(self, base):
         return base + '.pdf'
     
-    def from_data(self, uid, fields, rows, company_name):
-        pageSize=[210.0,297.0]
+    def from_data(self, uid, fields, rows, company_name, company_logo, current_date):
+        """
+        :param company_name: string
+        :param company_logo: binary file
+        """
+        page_size = [210.0, 297.0]
         new_doc = etree.Element("report")
         config = etree.SubElement(new_doc, 'config')
+
         def _append_node(name, text):
             n = etree.SubElement(config, name)
             n.text = text
-        _append_node('date', time.strftime(str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
-        _append_node('PageSize', '%.2fmm,%.2fmm' % tuple(pageSize))
-        _append_node('PageWidth', '%.2f' % (pageSize[0] * 2.8346,))
-        _append_node('PageHeight', '%.2f' %(pageSize[1] * 2.8346,))
+        _append_node('date', current_date)
+        _append_node('PageSize', '%.2fmm,%.2fmm' % tuple(page_size))
+        _append_node('PageWidth', '%.2f' % (page_size[0] * 2.8346,))
+        _append_node('PageHeight', '%.2f' %(page_size[1] * 2.8346,))
         _append_node('PageFormat', 'a4')
-        _append_node('header-date', time.strftime(str(locale.nl_langinfo(locale.D_FMT).replace('%y', '%Y'))))
+        _append_node('header-date', current_date)
         _append_node('company', company_name)
+        _append_node('company_logo', company_logo)
+
         l = []
         t = 0
         temp = []
@@ -150,7 +172,7 @@ class ExportPdf(Export):
             node_line = etree.SubElement(lines, 'row')
             j = 0
             for row in row_lines:
-                if not j in skip_index:
+                if j not in skip_index:
                     para = "yes"
                     tree = "no"
                     value = row.get('data', '')
@@ -161,22 +183,30 @@ class ExportPdf(Export):
                     col = etree.SubElement(node_line, 'col', para=para, tree=tree)
                     col.text = tools.ustr(value)
                 j += 1
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         transform = etree.XSLT(
-            etree.parse(os.path.join(tools.config['root_path'],
-                                     'addons/base/report/custom_new.xsl')))
+            etree.parse(os.path.join(current_dir,
+                                     'report/main_rml_layout.xsl')))
         rml = etree.tostring(transform(new_doc))
-        self.obj = trml2pdf.parseNode(rml, title='Printscreen')
+        localcontext = {'company_logo': company_logo,
+                        'internal_header': False,}
+        self.obj = trml2pdf.parseNode(rml, localcontext, title='Printscreen')
         return self.obj
 
 class ZbPdfExport(ExportPdf):
+    fmt = None
     _cp_path = '/web/export/zb_pdf_export'
     
     @openerpweb.httprequest
     def index(self, req, data, token):
         data = json.loads(data)
         uid = data.get('uid', False)
-        return req.make_response(self.from_data(uid, data.get('headers', []), data.get('rows', []),
-                                                data.get('company_name','')),
+        return req.make_response(self.from_data(uid, data.get('headers', []),
+                                                     data.get('rows', []),
+                                                     data.get('company_name',''),
+                                                     data.get('company_logo', ''),
+                                                     data.get('current_date', '')),
                                  headers=[('Content-Disposition',
                                            'attachment; filename=PDF Export'),
                                           ('Content-Type', self.content_type)],
